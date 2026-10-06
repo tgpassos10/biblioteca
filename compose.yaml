@@ -1,0 +1,30 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: biblioteca_app
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - postgres
+  postgres:
+    image: postgres:16
+    container_name: biblioteca_postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: biblioteca
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: biblioteca123
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - biblioteca_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  biblioteca_postgres_data:
