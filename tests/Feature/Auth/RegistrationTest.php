@@ -2,40 +2,50 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Fortify\Features;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
+    public function test_public_registration_is_disabled(): void
     {
-        parent::setUp();
-
-        $this->skipUnlessFortifyHas(Features::registration());
+        $this->get('/register')->assertNotFound();
+        $this->post('/register')->assertNotFound();
     }
 
-    public function test_registration_screen_can_be_rendered(): void
+    public function test_reader_cannot_log_in_or_access_the_panel_api(): void
     {
-        $response = $this->get(route('register'));
+        $leitor = User::factory()->create();
 
-        $response->assertOk();
+        $this->post('/login', ['email' => $leitor->email, 'password' => 'password'])
+            ->assertSessionHasErrors('email');
+        $this->assertGuest();
+
+        $this->actingAs($leitor)->getJson('/api/livros')->assertForbidden();
     }
 
-    public function test_new_users_can_register(): void
+    public function test_staff_can_register_reader_without_password(): void
     {
-        $response = $this->post(route('register.store'), [
-            'name' => 'John Doe',
-            'email' => 'test@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+        $funcionario = User::factory()->funcionario()->create();
+
+        $resposta = $this->actingAs($funcionario)->postJson('/api/usuarios', [
+            'name' => 'Leitora de teste',
+            'email' => 'leitora@example.com',
+        ])->assertCreated();
+
+        $id = $resposta->json('id');
+        $this->assertDatabaseHas('users', ['id' => $id, 'funcionario' => false]);
+        $this->assertDatabaseHas('operacoes_auditoria', [
+            'ator_id' => $funcionario->id,
+            'registro_id' => $id,
+            'entidade' => 'users',
+            'acao' => 'cadastro',
         ]);
-
-        $response->assertSessionHasNoErrors()
-            ->assertRedirect(route('dashboard', absolute: false));
-
-        $this->assertAuthenticated();
+        $this->getJson('/api/usuarios')->assertExactJson([
+            ['id' => $id, 'name' => 'Leitora de teste'],
+        ]);
     }
 }

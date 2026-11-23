@@ -4,20 +4,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'can:acessar-biblioteca', 'verified'])->group(function () {
     Route::get('/dashboard', function () {
-        return redirect()->away('http://localhost:5175');
+        return redirect()->away(config('app.frontend_url'));
     })->name('dashboard');
 });
 
 require __DIR__.'/settings.php';
-
-Route::get('/sair', function (\Illuminate\Http\Request $request) {
-
-    \Illuminate\Support\Facades\Auth::guard('web')->logout();
-
-    $request->session()->invalidate();
-    $request->session()->regenerateToken();
-
-    return redirect('/login');
-});

@@ -189,3 +189,45 @@ http://localhost:5173
 - [x] Logout funcional
 - [x] Sessão e cookies
 - [x] Integração com API pública de livros
+## Entrega final
+
+O frontend fica em `frontend/`. Execute `npm ci` e `npm run dev` nessa pasta.
+O padrão local usa React em `http://localhost:5175` e Laravel em `http://localhost:8000`.
+Abra a tela React e use **Entrar na Biblioteca** para acessar o login do Laravel.
+Use uma conta de teste verificada. As rotas de livros e empréstimos exigem sessão válida.
+A tela permite registrar um empréstimo pelo ID do usuário e registrar a devolução.
+
+### Publicação
+
+- **Supabase:** configure o PostgreSQL no Laravel com `DB_CONNECTION=pgsql`,
+  `DB_URL` e `DB_SSLMODE=require`. Execute `php artisan migrate --force`
+  no ambiente do serviço após configurar o banco.
+- **Render:** configure `APP_KEY`, `APP_ENV=production`, `APP_DEBUG=false`,
+  `APP_URL` com a origem pública do Laravel e `SESSION_DRIVER=database`.
+  O login do Laravel usa ativos Vite. Na raiz do back-end, gere esses ativos com
+  `npm ci` e `npm run build` e inclua `public/build` na imagem de produção.
+- **Vercel:** selecione `frontend/` como raiz e configure `VITE_API_URL`
+  com a origem pública do Laravel, sem o sufixo `/api`.
+- **Sessões em produção:** use subdomínios HTTPS do mesmo domínio registrável
+  para React e Laravel. No Render, configure `FRONTEND_URL` com a origem
+  exata da Vercel, `SANCTUM_STATEFUL_DOMAINS` com o host do React,
+  `SESSION_DOMAIN` com o domínio compartilhado e `SESSION_SECURE_COOKIE=true`.
+
+O React usa Axios para a API Laravel e a consulta pública por ISBN.
+O painel tem acesso restrito a funcionários. Valide login, logout,
+cadastro de livro, ISBN, empréstimo e devolução no ambiente publicado.
+
+## Acesso da equipe e cadastro de leitores
+
+Execute as migrações e provisione uma conta de funcionário pelo terminal:
+
+```bash
+php artisan migrate
+php artisan biblioteca:funcionario funcionario@example.com
+```
+
+Para habilitar uma conta existente da equipe, acrescente `--promover` e confirme
+a operação. Contas anteriores começam como leitores até que um operador
+autorize explicitamente o acesso de cada funcionário. Os empréstimos
+anteriores mantêm os mesmos vínculos. O painel cadastra leitores pelo nome e
+e-mail e os disponibiliza para novos empréstimos.

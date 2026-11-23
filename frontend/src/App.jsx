@@ -1,13 +1,69 @@
+import axios from 'axios'
 import { useEffect, useState } from 'react'
 import './App.css'
 
+const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '')
+
+
+const laravel = axios.create({
+  timeout: 30000,
+  withCredentials: true,
+  withXSRFToken: true,
+  headers: { Accept: 'application/json' },
+  validateStatus: () => true
+})
+
+function respostaOk(resposta) {
+  return resposta.status >= 200 && resposta.status < 300
+}
+
+async function requisicaoLaravel(url, { body, method = 'GET', headers, signal } = {}) {
+  if (method !== 'GET') {
+    const csrf = await laravel.get(`${apiUrl}/sanctum/csrf-cookie`)
+    if (!respostaOk(csrf)) throw new Error('Não foi possível iniciar a sessão.')
+  }
+
+  return laravel.request({ url, method, headers, signal, data: body })
+}
+
+const telas = [
+  ['inicio', '🏠', 'Início'],
+  ['consulta', '🔎', 'Buscar ISBN'],
+  ['cadastro', '＋', 'Cadastrar livro'],
+  ['livros', '📖', 'Livros'],
+  ['emprestimos', '↔', 'Empréstimos'],
+  ['usuarios', '👤', 'Leitores']
+]
+
+function telaAtual() {
+  const id = window.location.hash.slice(1)
+  return telas.some(([tela]) => tela === id) ? id : 'inicio'
+}
+
 function App() {
+  const [tela, setTela] = useState(telaAtual)
+  useEffect(() => {
+    function navegar() {
+      setTela(telaAtual())
+      window.scrollTo(0, 0)
+    }
+    window.addEventListener('hashchange', navegar)
+    return () => window.removeEventListener('hashchange', navegar)
+  }, [])
+
+  const [sessao, setSessao] = useState(undefined)
+  const [erroCarregamento, setErroCarregamento] = useState(false)
   const [isbn, setIsbn] = useState('')
   const [livroApi, setLivroApi] = useState(null)
   const [erro, setErro] = useState('')
 
   const [livros, setLivros] = useState([])
+  const [usuarios, setUsuarios] = useState([])
+  const [salvandoUsuario, setSalvandoUsuario] = useState(false)
+  const [resultadoUsuario, setResultadoUsuario] = useState('')
   const [emprestimos, setEmprestimos] = useState([])
+  const [salvandoEmprestimo, setSalvandoEmprestimo] = useState(false)
+  const [resultadoEmprestimo, setResultadoEmprestimo] = useState('')
 
   const [mensagem, setMensagem] = useState('')
   const [tipoMensagem, setTipoMensagem] = useState('')
@@ -27,35 +83,105 @@ function App() {
   // CARREGAR DADOS DO LARAVEL
   // ==============================
 
-  async function carregarSistema() {
+  async function carregarSistema(signal) {
+    setErroCarregamento(false)
     try {
-      const respostaLivros = await fetch(
-        'http://localhost:8000/api/livros'
-      )
+      const respostaUsuario = await requisicaoLaravel(`${apiUrl}/api/user`, { signal })
+      if (respostaUsuario.status === 401) {
+        setSessao(null)
+        return
+      }
+      if (!respostaOk(respostaUsuario)) throw new Error('Falha ao consultar sessão.')
+      setSessao(respostaUsuario.data)
 
-      const dadosLivros = await respostaLivros.json()
+      const [respostaLivros, respostaEmprestimos, respostaUsuarios] = await Promise.all([
+        requisicaoLaravel(`${apiUrl}/api/livros`, { signal }),
+        requisicaoLaravel(`${apiUrl}/api/emprestimos`, { signal }),
+        requisicaoLaravel(`${apiUrl}/api/usuarios`, { signal })
+      ])
 
-      setLivros(dadosLivros)
+      if (respostaLivros.status === 401 || respostaEmprestimos.status === 401) {
+        setSessao(null)
+        return
+      }
+      if (!respostaOk(respostaLivros) || !respostaOk(respostaEmprestimos)) {
+        throw new Error('Falha ao carregar livros e empréstimos.')
+      }
 
-      const respostaEmprestimos = await fetch(
-        'http://localhost:8000/api/emprestimos'
-      )
-
-      const dadosEmprestimos =
-        await respostaEmprestimos.json()
-
-      setEmprestimos(dadosEmprestimos)
-
+      setLivros(respostaLivros.data)
+      setEmprestimos(respostaEmprestimos.data)
+      if (respostaOk(respostaUsuarios) && Array.isArray(respostaUsuarios.data)) {
+        setUsuarios(respostaUsuarios.data)
+      } else {
+        setErroCarregamento(true)
+      }
     } catch (erro) {
-      console.error(
-        'Erro ao carregar dados:',
-        erro
-      )
+      if (axios.isCancel(erro)) return
+      setErroCarregamento(true)
+      console.error('Erro ao carregar dados:', erro)
     }
   }
 
+  async function cadastrarUsuario(evento) {
+    evento.preventDefault()
+    const formulario = evento.currentTarget
+    setSalvandoUsuario(true)
+    setResultadoUsuario('')
+    try {
+      const resposta = await requisicaoLaravel(`${apiUrl}/api/usuarios`, {
+        method: 'POST',
+        body: Object.fromEntries(new FormData(formulario))
+      })
+      if (!respostaOk(resposta)) {
+        const erro = Object.values(resposta.data?.errors ?? {}).flat().join(' ')
+        throw new Error(erro || 'Não foi possível cadastrar o usuário.')
+      }
+      setUsuarios(atuais => [...atuais, resposta.data].sort((a, b) => a.name.localeCompare(b.name)))
+      formulario.reset()
+      setResultadoUsuario('Leitor cadastrado.')
+    } catch (erro) {
+      setResultadoUsuario(erro.message)
+    } finally {
+      setSalvandoUsuario(false)
+    }
+  }
+
+  async function salvarEmprestimo(dados, id) {
+    setSalvandoEmprestimo(true)
+    setResultadoEmprestimo('')
+    try {
+      const rota = id ? `/api/emprestimos/${id}` : '/api/emprestimos'
+      const resposta = await requisicaoLaravel(`${apiUrl}${rota}`, {
+        method: id ? 'PATCH' : 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(dados)
+      })
+      const resultado = resposta.data
+      if (!respostaOk(resposta)) throw new Error(resultado.message || resultado.mensagem || 'Falha ao salvar.')
+      setEmprestimos(atuais => id
+        ? atuais.map(item => item.id === id ? resultado.emprestimo : item)
+        : [...atuais, resultado.emprestimo])
+      setResultadoEmprestimo(id ? 'Devolução registrada.' : 'Empréstimo cadastrado.')
+      return true
+    } catch (erro) {
+      setResultadoEmprestimo(erro.message)
+      return false
+    } finally {
+      setSalvandoEmprestimo(false)
+    }
+  }
+
+  async function cadastrarEmprestimo(evento) {
+    evento.preventDefault()
+    const formulario = evento.currentTarget
+    const dados = Object.fromEntries(new FormData(formulario))
+    if (await salvarEmprestimo(dados)) formulario.reset()
+  }
+
   useEffect(() => {
-    carregarSistema()
+    const controle = new AbortController()
+    carregarSistema(controle.signal)
+    return () => controle.abort()
   }, [])
 
   // ==============================
@@ -72,11 +198,11 @@ function App() {
     }
 
     try {
-      const resposta = await fetch(
+      const resposta = await axios.get(
         `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`
       )
 
-      const dados = await resposta.json()
+      const dados = resposta.data
 
       const resultado =
         dados[`ISBN:${isbn}`]
@@ -115,8 +241,8 @@ function App() {
     setTipoMensagem('')
 
     try {
-      const resposta = await fetch(
-        'http://localhost:8000/api/livros',
+      const resposta = await requisicaoLaravel(
+        `${apiUrl}/api/livros`,
         {
           method: 'POST',
 
@@ -138,9 +264,9 @@ function App() {
       )
 
       const dados =
-        await resposta.json()
+        resposta.data
 
-      if (!resposta.ok) {
+      if (!respostaOk(resposta)) {
         setTipoMensagem('erro')
 
         if (dados.errors?.isbn) {
@@ -200,8 +326,8 @@ function App() {
     }
 
     try {
-      const resposta = await fetch(
-        `http://localhost:8000/api/livros/${livroEditando.id}`,
+      const resposta = await requisicaoLaravel(
+        `${apiUrl}/api/livros/${livroEditando.id}`,
         {
           method: 'PUT',
 
@@ -236,9 +362,9 @@ function App() {
       )
 
       const dados =
-        await resposta.json()
+        resposta.data
 
-      if (!resposta.ok) {
+      if (!respostaOk(resposta)) {
         console.error(
           'Erro ao atualizar:',
           dados
@@ -287,8 +413,8 @@ function App() {
     }
 
     try {
-      const resposta = await fetch(
-        `http://localhost:8000/api/livros/${id}`,
+      const resposta = await requisicaoLaravel(
+        `${apiUrl}/api/livros/${id}`,
         {
           method: 'DELETE',
 
@@ -299,7 +425,7 @@ function App() {
         }
       )
 
-      if (!resposta.ok) {
+      if (!respostaOk(resposta)) {
         alert(
           'Não foi possível excluir o livro.'
         )
@@ -338,6 +464,26 @@ function App() {
   // INTERFACE
   // ==============================
 
+  const avisoCarregamento = (
+    <div role="alert">
+      <p>Não foi possível carregar a Biblioteca.</p>
+      <button type="button" onClick={() => carregarSistema()}>Tentar novamente</button>
+    </div>
+  )
+
+  if (sessao === undefined) {
+    return <main className="conteudo"><section className="card">
+      <h1>Sistema de Gestão de Biblioteca</h1>
+      {erroCarregamento ? avisoCarregamento : <p role="status">Verificando sua sessão…</p>}
+    </section></main>
+  }
+
+  if (sessao === null) {
+    return <main className="conteudo"><section className="card">
+      <h1>Sistema de Gestão de Biblioteca</h1>
+      <a className="login-link" href={`${apiUrl}/login`}>Entrar na Biblioteca</a>
+    </section></main>
+  }
   return (
     <div className="app-layout">
 
@@ -356,28 +502,12 @@ function App() {
 
         </div>
 
-        <nav className="menu">
-
-          <a href="#inicio">
-            🏠 Início
-          </a>
-
-          <a href="#consulta">
-            🔎 Buscar ISBN
-          </a>
-
-          <a href="#cadastro">
-            ➕ Cadastrar Livro
-          </a>
-
-          <a href="#livros">
-            📖 Livros
-          </a>
-
-          <a href="#emprestimos">
-            🔄 Empréstimos
-          </a>
-
+        <nav className="menu" aria-label="Menu da biblioteca">
+          {telas.map(([id, icone, texto]) => (
+            <a key={id} href={`#${id}`} aria-current={tela === id ? 'page' : undefined}>
+              <span aria-hidden="true">{icone}</span>{' '}{texto}
+            </a>
+          ))}
         </nav>
 
       </aside>
@@ -391,7 +521,7 @@ function App() {
 
         <header
           className="topbar"
-          id="inicio"
+
         >
 
           <div>
@@ -409,16 +539,21 @@ function App() {
 
           <div className="usuario-topo">
 
-            <span>
-              👤 Usuario Teste
-            </span>
+            <span>{sessao.name}</span>
 
             <button
               type="button"
               className="botao-sair"
-              onClick={() => {
-                window.location.href =
-                  'http://localhost:8000/sair'
+              onClick={async () => {
+                try {
+                  const resposta = await requisicaoLaravel(`${apiUrl}/logout`, { method: 'POST' })
+                  if (!respostaOk(resposta)) throw new Error('Falha ao sair.')
+                  setLivros([])
+                  setEmprestimos([])
+                  setSessao(null)
+                } catch (erro) {
+                  window.alert(erro.message)
+                }
               }}
             >
               Sair
@@ -431,11 +566,29 @@ function App() {
 
         <main className="conteudo">
 
+          {erroCarregamento && avisoCarregamento}
+          <section className="card" id="inicio" hidden={tela !== 'inicio'}>
+            <h2>Visão geral</h2>
+            <div className="lista">
+              <a className="item atalho" href="#livros">Livros cadastrados <strong>{livros.length}</strong></a>
+              <a className="item atalho" href="#emprestimos">Empréstimos em aberto <strong>{emprestimos.filter(item => !item.data_devolucao).length}</strong></a>
+              <a className="item atalho" href="#usuarios">Leitores cadastrados <strong>{usuarios.length}</strong></a>
+            </div>
+          </section>
+          <section className="card" id="usuarios" hidden={tela !== 'usuarios'}>
+            <h2>Cadastrar leitor</h2>
+            <form className="formulario" onSubmit={cadastrarUsuario}>
+              <label>Nome <input name="name" autoComplete="off" required /></label>
+              <label>E-mail <input name="email" type="email" autoComplete="off" required /></label>
+              <button type="submit" disabled={salvandoUsuario}>Cadastrar leitor</button>
+            </form>
+            <p role="status">{resultadoUsuario}</p>
+          </section>
           {/* BUSCA ISBN */}
 
           <section
             className="card"
-            id="consulta"
+            id="consulta" hidden={tela !== 'consulta'}
           >
 
             <h2>
@@ -554,7 +707,7 @@ function App() {
 
           <section
             className="card"
-            id="cadastro"
+            id="cadastro" hidden={tela !== 'cadastro'}
           >
 
             <h2>
@@ -666,7 +819,7 @@ function App() {
 
           <section
             className="card"
-            id="livros"
+            id="livros" hidden={tela !== 'livros'}
           >
 
             <h2>
@@ -909,12 +1062,27 @@ function App() {
 
           <section
             className="card"
-            id="emprestimos"
+            id="emprestimos" hidden={tela !== 'emprestimos'}
           >
 
             <h2>
               🔄 Empréstimos
             </h2>
+            <form onSubmit={cadastrarEmprestimo}>
+              <label>Leitor <select name="usuario_id" required defaultValue="">
+                <option value="" disabled>Selecione um leitor</option>
+                {usuarios.map(usuario => <option key={usuario.id} value={usuario.id}>{usuario.name} (#{usuario.id})</option>)}
+              </select></label>
+              <label>Livro <select name="livro_id" required defaultValue="">
+                <option value="" disabled>Selecione um livro</option>
+                {livros.map(livro => <option key={livro.id} value={livro.id}>{livro.titulo}</option>)}
+              </select></label>
+              <label>Data do empréstimo <input name="data_emprestimo" type="date" required /></label>
+              <label>Devolução prevista <input name="data_prevista_devolucao" type="date" required /></label>
+              <button type="submit" disabled={salvandoEmprestimo}>Cadastrar empréstimo</button>
+            </form>
+            <p role="status">{resultadoEmprestimo}</p>
+
 
 
             {
@@ -998,9 +1166,19 @@ function App() {
 
                               {
                                 emprestimo
-                                  .status
+                                  .status || (emprestimo.data_devolucao ? 'devolvido' : 'em aberto')
                               }
                             </p>
+                            {emprestimo.data_devolucao ? (
+                              <p>Devolvido em {emprestimo.data_devolucao.slice(0, 10)}</p>
+                            ) : (
+                              <button type="button" disabled={salvandoEmprestimo} onClick={() => {
+                                const hoje = new Date()
+                                const data = new Date(hoje.getTime() - hoje.getTimezoneOffset() * 60000)
+                                  .toISOString().slice(0, 10)
+                                salvarEmprestimo({ data_devolucao: data, status: 'devolvido' }, emprestimo.id)
+                              }}>Registrar devolução</button>
+                            )}
 
                           </div>
 

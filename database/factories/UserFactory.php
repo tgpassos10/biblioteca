@@ -38,6 +38,11 @@ class UserFactory extends Factory
         ];
     }
 
+    public function funcionario(): static
+    {
+        return $this->state(['funcionario' => true]);
+    }
+
     /**
      * Indicate that the model's email address should be unverified.
      */

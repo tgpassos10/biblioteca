@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Livro;
+use App\Support\Auditoria;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LivroController extends Controller
 {
@@ -25,7 +27,12 @@ class LivroController extends Controller
             'sinopse' => 'nullable|string',
         ]);
 
-        $livro = Livro::create($dados);
+        $livro = DB::transaction(function () use ($dados, $request) {
+            $registro = Livro::create($dados);
+            Auditoria::registrar($request->user()->id, 'cadastro', $registro);
+
+            return $registro;
+        });
 
         return response()->json([
             'mensagem' => 'Livro cadastrado com sucesso!',
@@ -67,7 +74,12 @@ class LivroController extends Controller
             'sinopse' => 'nullable|string',
         ]);
 
-        $livro->update($dados);
+        DB::transaction(function () use ($livro, $dados, $request) {
+            $livro->update($dados);
+            if ($livro->wasChanged()) {
+                Auditoria::registrar($request->user()->id, 'edicao', $livro);
+            }
+        });
 
         return response()->json([
             'mensagem' => 'Livro atualizado com sucesso!',
@@ -76,7 +88,7 @@ class LivroController extends Controller
     }
 
     // EXCLUIR UM LIVRO
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
         $livro = Livro::find($id);
 
@@ -86,7 +98,10 @@ class LivroController extends Controller
             ], 404);
         }
 
-        $livro->delete();
+        DB::transaction(function () use ($livro, $request) {
+            $livro->delete();
+            Auditoria::registrar($request->user()->id, 'exclusao', $livro);
+        });
 
         return response()->json([
             'mensagem' => 'Livro excluído com sucesso!'
