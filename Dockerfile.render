@@ -1,0 +1,21 @@
+FROM php:8.5-cli AS backend
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpq-dev git unzip \
+    && docker-php-ext-install pdo_pgsql \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+WORKDIR /var/www/html
+COPY . .
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+FROM node:24-bookworm AS assets
+WORKDIR /var/www/html
+COPY --from=backend /var/www/html/ ./
+RUN npm ci --no-audit --no-fund && npm run build
+
+FROM backend
+COPY --from=assets /var/www/html/public/build/ ./public/build/
+
+CMD ["sh", "-c", "php artisan migrate --force && exec php artisan serve --host=0.0.0.0 --port=${PORT:-10000}"]
