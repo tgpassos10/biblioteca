@@ -1,0 +1,65 @@
+{
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://bibliotecatech-api.onrender.com/api/:path*"
+    },
+    {
+      "source": "/sanctum/:path*",
+      "destination": "https://bibliotecatech-api.onrender.com/sanctum/:path*"
+    },
+    {
+      "source": "/build/:path*",
+      "destination": "https://bibliotecatech-api.onrender.com/build/:path*"
+    },
+    {
+      "source": "/livewire/:path*",
+      "destination": "https://bibliotecatech-api.onrender.com/livewire/:path*"
+    },
+    {
+      "source": "/livewire-:hash/:path*",
+      "destination": "https://bibliotecatech-api.onrender.com/livewire-:hash/:path*"
+    },
+    {
+      "source": "/login",
+      "destination": "https://bibliotecatech-api.onrender.com/login"
+    },
+    {
+      "source": "/logout",
+      "destination": "https://bibliotecatech-api.onrender.com/logout"
+    },
+    {
+      "source": "/dashboard",
+      "destination": "https://bibliotecatech-api.onrender.com/dashboard"
+    },
+    {
+      "source": "/forgot-password",
+      "destination": "https://bibliotecatech-api.onrender.com/forgot-password"
+    },
+    {
+      "source": "/reset-password/:path*",
+      "destination": "https://bibliotecatech-api.onrender.com/reset-password/:path*"
+    },
+    {
+      "source": "/email/:path*",
+      "destination": "https://bibliotecatech-api.onrender.com/email/:path*"
+    },
+    {
+      "source": "/two-factor-challenge",
+      "destination": "https://bibliotecatech-api.onrender.com/two-factor-challenge"
+    },
+    {
+      "source": "/user/:path*",
+      "destination": "https://bibliotecatech-api.onrender.com/user/:path*"
+    },
+    {
+      "source": "/passkeys/:path*",
+      "destination": "https://bibliotecatech-api.onrender.com/passkeys/:path*"
+    },
+    {
+      "source": "/settings/:path*",
+      "destination": "https://bibliotecatech-api.onrender.com/settings/:path*"
+    }
+  ]
+}
