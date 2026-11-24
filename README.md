@@ -2,11 +2,21 @@
 
 Projeto semestral da disciplina de Desenvolvimento Web II.
 
+## Links de produção
+
+- [BibliotecaTech na Vercel](https://biblioteca-sepia-beta.vercel.app/)
+- [Verificação da API Laravel no Render](https://bibliotecatech-api.onrender.com/up)
+- [Código-fonte no GitHub](https://github.com/tgpassos10/biblioteca)
+
 O sistema foi desenvolvido para gerenciar:
 
 - Livros
 - Usuários
 - Empréstimos
+
+## Diagrama entidade-relacionamento
+
+![Diagrama de livros, usuários e empréstimos](database/docs/der-biblioteca.png.png)
 
 ## Tecnologias utilizadas
 

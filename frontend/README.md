@@ -28,4 +28,4 @@ Relacionamentos:
 - Um livro pode participar de vários empréstimos.
 - Cada empréstimo pertence a um usuário e a um livro.
 
-![DER do Sistema de Biblioteca](docs/der-biblioteca.png)
+![DER do Sistema de Biblioteca](../database/docs/der-biblioteca.png.png)
