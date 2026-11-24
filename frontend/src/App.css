@@ -30,6 +30,10 @@ button:disabled { opacity: .6; cursor: wait; }
 .lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr)); gap: 12px; }
 .item, .resultado { padding: 16px; background: #f5f8fa; border: 1px solid #dde6eb; border-radius: 13px; overflow-wrap: anywhere; }
 .item h3 { margin-bottom: 6px; font-size: 17px; }
+.item .disponibilidade { margin: 8px 0 10px; }
+.disponibilidade span { display: block; }
+.disponibilidade.disponivel { color: #086057; }
+.disponibilidade.indisponivel { color: #9a3412; }
 .item p + p { margin-top: 3px; }
 .item > button, .acoes-livro, .acoes-edicao, .edicao-livro { margin-top: 12px; }
 .acoes-livro, .acoes-edicao { display: flex; flex-wrap: wrap; gap: 8px; }

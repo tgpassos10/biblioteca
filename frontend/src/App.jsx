@@ -62,6 +62,9 @@ function App() {
   const [salvandoUsuario, setSalvandoUsuario] = useState(false)
   const [resultadoUsuario, setResultadoUsuario] = useState('')
   const [emprestimos, setEmprestimos] = useState([])
+  const emprestimosEmAberto = new Map(
+    emprestimos.filter(item => !item.data_devolucao).map(item => [String(item.livro_id), item])
+  )
   const [salvandoEmprestimo, setSalvandoEmprestimo] = useState(false)
   const [resultadoEmprestimo, setResultadoEmprestimo] = useState('')
 
@@ -157,7 +160,10 @@ function App() {
         body: JSON.stringify(dados)
       })
       const resultado = resposta.data
-      if (!respostaOk(resposta)) throw new Error(resultado.message || resultado.mensagem || 'Falha ao salvar.')
+      if (!respostaOk(resposta)) {
+        const erro = Object.values(resultado?.errors ?? {}).flat().join(' ')
+        throw new Error(erro || resultado?.mensagem || resultado?.message || 'Falha ao salvar.')
+      }
       setEmprestimos(atuais => id
         ? atuais.map(item => item.id === id ? resultado.emprestimo : item)
         : [...atuais, resultado.emprestimo])
@@ -848,6 +854,14 @@ function App() {
                       <h3>
                         {livro.titulo}
                       </h3>
+                      {emprestimosEmAberto.has(String(livro.id)) ? (
+                        <p className="disponibilidade indisponivel">
+                          <strong>Não disponível · Emprestado</strong>
+                          <span>Devolução prevista: {emprestimosEmAberto.get(String(livro.id)).data_prevista_devolucao.slice(0, 10).split('-').reverse().join('/')}</span>
+                        </p>
+                      ) : (
+                        <p className="disponibilidade disponivel"><strong>Disponível</strong></p>
+                      )}
 
                       <p>
                         <strong>
@@ -1075,7 +1089,12 @@ function App() {
               </select></label>
               <label>Livro <select name="livro_id" required defaultValue="">
                 <option value="" disabled>Selecione um livro</option>
-                {livros.map(livro => <option key={livro.id} value={livro.id}>{livro.titulo}</option>)}
+                {livros.map(livro => {
+                  const emprestado = emprestimosEmAberto.has(String(livro.id))
+                  return <option key={livro.id} value={livro.id} disabled={emprestado}>
+                    {livro.titulo}{emprestado ? ' (emprestado)' : ''}
+                  </option>
+                })}
               </select></label>
               <label>Data do empréstimo <input name="data_emprestimo" type="date" required /></label>
               <label>Devolução prevista <input name="data_prevista_devolucao" type="date" required /></label>
