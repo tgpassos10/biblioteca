@@ -22,7 +22,7 @@ class EmprestimoController extends Controller
     public function store(Request $request)
     {
         $dados = $request->validate([
-            'usuario_id' => ['required', 'integer', Rule::exists('users', 'id')->where('funcionario', false)],
+            'usuario_id' => ['required', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('funcionario', false))],
             'livro_id' => 'required|integer|exists:livros,id',
             'data_emprestimo' => 'required|date',
             'data_prevista_devolucao' => 'required|date|after_or_equal:data_emprestimo',
@@ -71,7 +71,7 @@ class EmprestimoController extends Controller
         }
 
         $dados = $request->validate([
-            'usuario_id' => ['sometimes', 'required', 'integer', Rule::exists('users', 'id')->where('funcionario', false)],
+            'usuario_id' => ['sometimes', 'required', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('funcionario', false))],
             'livro_id' => 'sometimes|required|integer|exists:livros,id',
             'data_emprestimo' => 'sometimes|required|date',
             'data_prevista_devolucao' => 'sometimes|required|date',
